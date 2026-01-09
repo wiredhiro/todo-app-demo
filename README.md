@@ -1,36 +1,211 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TODO アプリ（Next.js + Prisma + SQLite）
 
-## Getting Started
+Next.js（App Router）と Prisma、SQLite を使った **フルスタック TODO アプリ** です。  
+バックエンド API（CRUD）とフロント UI をひととおり実装し、  
+**Next.js × Prisma の構成を最小で体験** できます。
 
-First, run the development server:
+---
+
+## 🚀 技術スタック
+
+- **Next.js 14（App Router）**
+- **React 18**
+- **TypeScript**
+- **Prisma ORM**
+- **SQLite（ローカル開発用）**
+- **Next.js Route Handlers（API Routes v2）**
+- **Node.js 18+**
+
+---
+
+## 📦 機能一覧（CRUD）
+
+### ✔ 一覧取得（GET `/api/todos`）
+
+Prisma を利用して Todo を SQLite から取得し、作成日の降順で返します。
+
+### ✔ 新規作成（POST `/api/todos`）
+
+リクエスト JSON の `title` を受け取り、DB に保存します。
+
+### ✔ 更新（PATCH `/api/todos/:id`）
+
+Todo の `done` または `title` を更新できます。
+
+### ✔ 削除（DELETE `/api/todos/:id`）
+
+指定された ID の Todo を削除します。
+
+---
+
+## 📁 ディレクトリ構成
+
+app/
+api/
+todos/
+route.ts ← GET・POST
+[id]/
+route.ts ← PATCH・DELETE
+todos/
+page.tsx ← フロント UI（一覧・追加・更新・削除）
+layout.tsx
+page.tsx
+lib/
+prisma.ts ← Prisma Client（Singleton）
+prisma/
+schema.prisma ← Prisma スキーマ
+dev.db ← SQLite DB
+.env ← DATABASE_URL
+
+---
+
+## 🛠 セットアップ
+
+### 1. 依存インストール
+
+```bash
+npm install
+```
+
+### 2. DB セットアップ
+
+.env を作成：
+
+```bash
+DATABASE_URL="file:./prisma/dev.db"
+```
+
+マイグレーション実行：
+
+```bash
+npx prisma migrate dev --name init
+```
+
+### 3. 開発サーバー起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. TODO アプリにアクセス
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+http://localhost:3000/todos
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+⸻
 
-## Learn More
+🧩 Prisma Client（lib/prisma.ts）
 
-To learn more about Next.js, take a look at the following resources:
+Next.js の開発環境で PrismaClient が多重生成されるのを避けるための Singleton パターンを使用：
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+import { PrismaClient } from "@prisma/client";
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-## Deploy on Vercel
+export const prisma =
+globalForPrisma.prisma ||
+new PrismaClient({
+log: ["query"],
+});
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+if (process.env.NODE_ENV !== "production") {
+globalForPrisma.prisma = prisma;
+}
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+⸻
+
+📡 API 実装
+
+▶ /api/todos/route.ts（GET・POST）
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() {
+const todos = await prisma.todo.findMany({
+orderBy: { createdAt: "desc" },
+});
+return NextResponse.json(todos);
+}
+
+export async function POST(req: Request) {
+const { title } = await req.json();
+const todo = await prisma.todo.create({
+data: { title },
+});
+return NextResponse.json(todo, { status: 201 });
+}
+
+▶ /api/todos/[id]/route.ts（PATCH・DELETE）
+
+Next.js の仕様に合わせて params を await して展開：
+
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+type RouteParams = { id: string };
+
+export async function PATCH(
+req: Request,
+context: { params: Promise<RouteParams> }
+) {
+const { id } = await context.params;
+const numericId = Number(id);
+
+const { title, done } = await req.json();
+
+const updated = await prisma.todo.update({
+where: { id: numericId },
+data: { title, done },
+});
+
+return NextResponse.json(updated);
+}
+
+export async function DELETE(
+\_req: Request,
+context: { params: Promise<RouteParams> }
+) {
+const { id } = await context.params;
+const numericId = Number(id);
+
+await prisma.todo.delete({ where: { id: numericId } });
+
+return NextResponse.json({ success: true });
+}
+
+⸻
+
+🖥 フロント UI（app/todos/page.tsx）
+• 初回ロードで一覧を fetch
+• 追加フォーム
+• チェックボックスで done トグル
+• 削除ボタン
+• 状態管理：useState / useEffect
+
+（フルコードはプロジェクト内に記載）
+
+⸻
+
+🎯 学べるポイント
+• Next.js App Router の基本的なページ構成
+• Route Handlers を使った API 実装（GET/POST/PATCH/DELETE）
+• Prisma ORM × SQLite によるデータ永続化
+• TypeScript での型安全なフルスタック開発
+• フロントとバックエンドのデータ連携
+• Next.js のサーバーコンポーネントとクライアントコンポーネントの使い分け
+• Prisma Client の Singleton パターン
+
+⸻
+
+🧑‍💻 作成者
+
+Hiroshi Ogawa
+React / Next.js フロントエンドエンジニア
+
+⸻
+
+```
+
+```
