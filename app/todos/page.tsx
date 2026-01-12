@@ -2,13 +2,7 @@
 'use client';
 
 import { useEffect, useState, FormEvent } from 'react';
-
-type Todo = {
-  id: number;
-  title: string;
-  done: boolean;
-  createdAt: string;
-};
+import { todoStorage, Todo } from '@/lib/todoStorage';
 
 export default function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -17,17 +11,15 @@ export default function TodosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isLocalMode = todoStorage.isLocalMode;
+
   // 初回ロードで一覧取得
   useEffect(() => {
     const fetchTodos = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/todos');
-        if (!res.ok) {
-          throw new Error('Failed to fetch todos');
-        }
-        const data: Todo[] = await res.json();
+        const data = await todoStorage.getAll();
         setTodos(data);
       } catch (err) {
         console.error(err);
@@ -48,19 +40,7 @@ export default function TodosPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/todos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title: title.trim() }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to create todo');
-      }
-
-      const newTodo: Todo = await res.json();
+      const newTodo = await todoStorage.create(title.trim());
       setTodos((prev) => [newTodo, ...prev]);
       setTitle('');
     } catch (err) {
@@ -75,19 +55,7 @@ export default function TodosPage() {
   const toggleDone = async (todo: Todo) => {
     setError(null);
     try {
-      const res = await fetch(`/api/todos/${todo.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ done: !todo.done }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to update todo');
-      }
-
-      const updated: Todo = await res.json();
+      const updated = await todoStorage.update(todo.id, { done: !todo.done });
       setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch (err) {
       console.error(err);
@@ -99,14 +67,7 @@ export default function TodosPage() {
   const deleteTodo = async (id: number) => {
     setError(null);
     try {
-      const res = await fetch(`/api/todos/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to delete todo');
-      }
-
+      await todoStorage.delete(id);
       setTodos((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       console.error(err);
@@ -128,7 +89,27 @@ export default function TodosPage() {
       </h1>
 
       <p style={{ marginBottom: 16, color: '#555' }}>
-        /api/todos 経由で SQLite（Prisma）と連携するサンプルです。
+        {isLocalMode ? (
+          <>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: 4,
+                backgroundColor: '#fef3c7',
+                color: '#92400e',
+                fontSize: 12,
+                fontWeight: 600,
+                marginRight: 8,
+              }}
+            >
+              デモモード
+            </span>
+            データはブラウザのローカルストレージに保存されます。
+          </>
+        ) : (
+          '/api/todos 経由で SQLite（Prisma）と連携するサンプルです。'
+        )}
       </p>
 
       <form
