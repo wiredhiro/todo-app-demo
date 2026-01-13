@@ -127,6 +127,74 @@ NEXT_PUBLIC_STORAGE_MODE=local
 
 ---
 
+## 🌍 静的サイトとしてデプロイ（さくらレンタルサーバー等）
+
+Node.js が使えないレンタルサーバーでも、静的HTMLとしてエクスポートすればデプロイできます。
+
+### 1. 静的エクスポートの設定
+
+`next.config.ts` で以下を設定：
+
+```ts
+const nextConfig: NextConfig = {
+  output: "export",
+  images: {
+    unoptimized: true,
+  },
+  // サブディレクトリにデプロイする場合はコメントを外す
+  // basePath: "/todo-app-demo",
+};
+```
+
+### 2. 環境変数の設定
+
+`.env` ファイルで以下を設定：
+
+```
+NEXT_PUBLIC_STORAGE_MODE="local"
+```
+
+### 3. ビルド
+
+```bash
+npm run build
+```
+
+`out/` フォルダに静的ファイルが生成されます。
+
+### 4. アップロード
+
+FTPソフト（Cyberduck、FileZilla等）で `out/` フォルダの中身をサーバーにアップロード：
+
+```
+out/
+├── _next/        → サーバーへ
+├── index.html    → サーバーへ
+├── todos/        → サーバーへ
+├── todos.html    → サーバーへ
+└── ...
+```
+
+### 5. アクセス
+
+```
+https://あなたのドメイン/
+```
+
+または
+
+```
+https://あなたのドメイン/todos
+```
+
+### 注意事項
+
+- 静的エクスポートでは API Routes は使用できません
+- データはブラウザの localStorage に保存されます
+- サーバー側でのデータ永続化はできません
+
+---
+
 ⸻
 
 🧩 Prisma Client（lib/prisma.ts）
